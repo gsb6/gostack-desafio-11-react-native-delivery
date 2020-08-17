@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Image, ScrollView } from 'react-native';
+import React, { useEffect, useState, useMemo } from 'react';
+import { Alert, Image, ScrollView } from 'react-native';
 
 import Icon from 'react-native-vector-icons/Feather';
 import { useNavigation } from '@react-navigation/native';
@@ -37,6 +37,11 @@ interface Food {
   formattedPrice: string;
 }
 
+interface FoodsParams {
+  name_like?: string;
+  category_like?: number;
+}
+
 interface Category {
   id: number;
   title: string;
@@ -44,6 +49,8 @@ interface Category {
 }
 
 const Dashboard: React.FC = () => {
+  const navigation = useNavigation();
+
   const [foods, setFoods] = useState<Food[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<
@@ -51,15 +58,35 @@ const Dashboard: React.FC = () => {
   >();
   const [searchValue, setSearchValue] = useState('');
 
-  const navigation = useNavigation();
+  const formattedFoods = useMemo(
+    () =>
+      foods.map(food => ({ ...food, formattedPrice: formatValue(food.price) })),
+    [foods],
+  );
 
   async function handleNavigate(id: number): Promise<void> {
-    // Navigate do ProductDetails page
+    navigation.navigate('FoodDetails', { id });
   }
 
   useEffect(() => {
     async function loadFoods(): Promise<void> {
-      // Load Foods from API
+      try {
+        const params = {} as FoodsParams;
+
+        if (selectedCategory) {
+          params.category_like = selectedCategory;
+        }
+
+        if (searchValue) {
+          params.name_like = searchValue;
+        }
+
+        const response = await api.get('/foods', { params });
+
+        setFoods(response.data);
+      } catch (error) {
+        Alert.alert('Erro', 'Erro ao buscar pratos, reinicie a aplicação.');
+      }
     }
 
     loadFoods();
@@ -67,14 +94,28 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     async function loadCategories(): Promise<void> {
-      // Load categories from API
+      try {
+        const response = await api.get('/categories');
+
+        setCategories(response.data);
+      } catch (error) {
+        Alert.alert(
+          'Erro',
+          'Erro ao buscar as categorias, reinicie a aplicação.',
+        );
+      }
     }
 
     loadCategories();
   }, []);
 
   function handleSelectCategory(id: number): void {
-    // Select / deselect category
+    if (id === selectedCategory) {
+      setSelectedCategory(undefined);
+      return;
+    }
+
+    setSelectedCategory(id);
   }
 
   return (
@@ -125,7 +166,7 @@ const Dashboard: React.FC = () => {
         <FoodsContainer>
           <Title>Pratos</Title>
           <FoodList>
-            {foods.map(food => (
+            {formattedFoods.map(food => (
               <Food
                 key={food.id}
                 onPress={() => handleNavigate(food.id)}
